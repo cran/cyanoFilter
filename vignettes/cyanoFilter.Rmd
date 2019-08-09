@@ -1,0 +1,44 @@
+---
+title: "cyanoFilter"
+subtitle: "An Automated Framework for Identifying synechoccus type cyanobacteria population in Flow Cytometry"
+author: "Olusoji O. D., De Laender F., Spaak J., Neyens T., Aerts M."
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{cyanoFilter: An Automated Framework for Identifying synechoccus type cyanobacteria population in Flow Cytometry}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\usepackage{UTF-8}{inputenc}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+Flow cytometry is a well-known technique for identifying cell populations contained in a biological smaple. It is largely applied in biomedical and medical sciences for cell sorting, counting, biomarker detections and protein engineering. The technique also provides an energy efficient alternative to microscopy that has long been the standard technique for cell population identification. Cyanobacteria are bacteria phylum believe to contribute more than 50% of atmospheric oxygen via oxygen and are found almost everywhere. These bacteria are also one of the known oldest life forms known to obtain their energy via photosynthesis.
+
+## Exisitng methods for identifying cell populations in flow cytometry
+
+## Crucial Synechococcus Properties
+
+## Software
+
+## Illustrations
+
+To illustrate the funtions contained in this package, we use two datafiles contained by default in the package. These are just demonstration dataset, hence are not documented in the helpfiles.
+
+```{r data_and_preprocessing}
+metadata <- system.file("extdata", "2019-03-25_Rstarted.csv", package = "cyanoFilter", 
+                        mustWork = TRUE)
+```
+
+## Discussions
+
+## Acknowledgements
+
+
+
