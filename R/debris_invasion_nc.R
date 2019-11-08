@@ -5,9 +5,9 @@
 #' @param p2 second flowcytometer channel that can be used to separate debris from the rest, e.g. "YEL.B.HLin"
 #'
 #' @return list containing; \itemize{
-#' \item \strong{bs4bs5 - flowframe containing non-debris particles}
+#' \item \strong{syn - flowframe containing non-debris particles}
 #' \item \strong{deb_pos - position of particles that are debris}
-#' \item \strong{bs4bs5_pos - position of particles that are not debris}
+#' \item \strong{syn_pos - position of particles that are not debris}
 #' }
 #'
 #' @description The function takes in a flowframe and identifies debris contained in the provided flowframe. It is specially designed for flowframe contaning both debris,
@@ -114,7 +114,7 @@ debris_inc <- function(flowframe, p1, p2) {
 
     text(x = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p1] <= deb_cut), p1]),
          y = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p2] <=
-        deb_cut), p2]), paste("Deb", ptt, sep = "-"), col = 2)
+        deb_cut), p2]), "Deb", col = 2)
 
-    return(list(bs4bs5 = bs4bs5, deb_pos = deb_pos, bs4bs5_pos = other_pos))
+    return(list(syn = bs4bs5, deb_pos = deb_pos, syn_pos = other_pos))
 }

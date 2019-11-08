@@ -22,7 +22,8 @@
 
 pair_plot <- function(flowfile, notToPlot = c("TIME")) {
     toplot <- setdiff(flowCore::colnames(flowfile), notToPlot)
-    col.palette <- colorRampPalette(c("white", "blue", "cyan", "green", "orange", "red"), space = "Lab")
+    col.palette <- colorRampPalette(c("white", "blue", "cyan", "green", "orange", "red"),
+                                    space = "Lab")
     pairs(flowCore::exprs(flowfile)[, toplot], pch = ".",
           panel = function(...) smoothScatter(..., nrpoints = 0,
                   colramp = col.palette,
@@ -33,19 +34,23 @@ pair_plot <- function(flowfile, notToPlot = c("TIME")) {
 #' plots the expression matrix of a flowframe analysed with celldebris_emclustering.
 #'
 #' @param flowfile flowframe to be plotted
-#' @param channel1 column in expression matrix not to be plotted
-#' @param channel2 column in expression matrix not to be plotted
+#' @param channels channels used in gating
 #' @param mus matrix of means obtained from celldebris_emclustering
 #' @param tau vector of cluster weights obtained from celldebris_emclustering
+#' @param classifier cells will be assigned to a cluster if belongs to that cluster
+#'                    by at least this probability. Only for plotting purposes.
 #'
 #' @importFrom grDevices chull densCols
 #' @importFrom graphics plot polygon
 #' @export cluster_plot
 
 
-cluster_plot <- function(flowfile, channel1 = "RED.B.HLin", channel2 = "YEL.B.HLin", mus = NULL, tau = NULL) {
+cluster_plot <- function(flowfile, channels,
+                         mus = NULL, tau = NULL,
+                         classifier) {
 
-  if(is.null(mus) | is.null(tau)) stop("supply the matrix of mean and vector of percentages obtained
+  if(is.null(mus) | is.null(tau)) stop("supply the matrix of mean and
+                                        vector of percentages obtained
                                        from the celldebris_emclustering function")
 
     ddata <- flowCore::exprs(flowfile)
@@ -54,54 +59,62 @@ cluster_plot <- function(flowfile, channel1 = "RED.B.HLin", channel2 = "YEL.B.HL
 
     color_code <- apply(ddata2, 1, function(x) {
 
-        rest <- which(x >= 0.7 & x == max(x))
-        frest <- ifelse(length(rest) == 0, ncol(ddata2)+1, rest) # maximum = not sure in other words NA
+        rest <- which(x >= classifier & x == max(x))
+        # maximum = not sure in other words NA
+        frest <- ifelse(length(rest) == 0, 0, rest)
 
         return(frest)
 
     })
 
     #plotting
-    cols.pal <- RColorBrewer::brewer.pal(n = length(unique(color_code)), "Dark2")
-    plot(ddata[, c(channel1, channel2)], pch = ".", main = flowCore::identifier(flowfile),
-         frame.plot = F, type = "n"
-        )
+    color_seq <- RColorBrewer::brewer.pal.info[RColorBrewer::brewer.pal.info$category == "seq", ]
+    panel.xy <- function(x, y, ...) {
 
-    for(i in 1:length(unique(color_code))) {
+      for(i in unique(color_code)) {
+        if(i != 0) {
 
-      plotdata <- ddata[color_code==unique(color_code)[i], c(channel1, channel2)]
-      pal <- colorRampPalette(c(cols.pal[i], "gray88", "green", "yellow", "orange", cols.pal[i]))
-      col <- densCols(plotdata, colramp =  pal)
+          cols.pal <- RColorBrewer::brewer.pal(n = 9, row.names(color_seq)[i])
+          col.palette <- colorRampPalette(c("white", cols.pal))
+          pal <- densCols(x[color_code == i], y[color_code == i],
+                          colramp =  col.palette)
+          points(x[color_code == i], y[color_code == i],
+                 col = pal, ...)
 
-      points(plotdata, pch = ".", col =  col)
-      #points to write cluster names
-      x <- ifelse(class(try(mus[channel1, unique(color_code)[i]], silent = TRUE)) == "numeric",
-                  mus[channel1, unique(color_code)[i]],
-                  mean(plotdata[, channel1]) )
+          #drawign cluster boundaries
+          if(i == which(tau == max(tau)) ) {
+          plot_data <- cbind(x[color_code == i], y[color_code == i])
+          convhull <- chull(plot_data)
+          polygon(plot_data[convhull, ], lty = 4, lwd = 2,
+                  border = "red"
+                  ) }
 
-      y <- ifelse(class(try(mus[channel2, unique(color_code)[i]], silent = TRUE)) == "numeric",
-                  mus[channel2, unique(color_code)[i]],
-                  mean(plotdata[, channel2]) )
-      #cluster names
-      text(x = x,
-           y = y,
-           labels = paste("C", unique(color_code)[i], sep = ""),
-           col = 2, offset = 0.0, cex = 0.8
-           )
-      #convexhull
-        if(unique(color_code)[i] == which(tau == max(tau)) ) {
-          convhull <- chull(plotdata[ ,
-                                      c(channel1, channel2)])
-          polygon(plotdata[convhull, ], lty = 4, lwd = 2, border = "red")
+
+        } else {
+
+          cols.pal <- RColorBrewer::brewer.pal(n = 9, "Greys")
+          col.palette <- colorRampPalette(c("white", cols.pal))
+          pal <- densCols(x[color_code == i], y[color_code == i],
+                          colramp =  col.palette)
+          points(x[color_code == i], y[color_code == i],
+                 col = pal, ...)
+
         }
 
-
+      }
 
     }
 
-    message("points are assigned to a cluster if they have at least 70% probability of belonging to that
-            cluster. The boundary of the largest cluster is drawn but the outermost colors represent the
-            boundaries of each cluster")
+    pairs(ddata[, channels], pch = ".",
+          panel = panel.xy, gap = 0.2,
+          main = flowCore::identifier(flowfile)
+      )
+
+    msg <- paste("points are assigned to a cluster if they have at least",
+                 classifier, "of belonging to that cluster.
+                 The boundary of the largest cluster is drawn but the
+                 colors differentiate each cluster", sep = " ")
+    message(msg)
 
 
 }

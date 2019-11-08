@@ -2,28 +2,34 @@
 % Please edit documentation in R/cell_gating.R
 \name{celldebris_nc}
 \alias{celldebris_nc}
-\title{gates out or assign indicators to BS4 and/or BS5 cyanobacteria cells.}
+\title{gates out or assign indicators to Synechococcus cyanobacteria cells.}
 \usage{
 celldebris_nc(flowframe, channel1 = "RED.B.HLin",
-  channel2 = "YEL.B.HLin", interest = c("BS4", "BS5", "Both"),
-  to_retain = c("refined", "potential"))
+  channel2 = "YEL.B.HLin", interest = c("bottom-right", "top-right",
+  "both-right"), to_retain = c("refined", "potential"))
 }
 \arguments{
-\item{flowframe}{flowframe with debris, BS4, BS5 and other cells.}
+\item{flowframe}{flowframe with debris and Synechococcus cells.}
 
-\item{channel1}{first flowcytometer channel that can be used to separate cyanobacteria cells from the rest, e.g. "RED.B.HLin".}
+\item{channel1}{first flowcytometer channel that can be used to separate cyanobacteria
+cells from the rest, e.g. "RED.B.HLin".}
 
-\item{channel2}{second flowcytometer channel that can be used to separate cyanobacteria cells from the rest, e.g. "YEL.B.HLin"}
+\item{channel2}{second flowcytometer channel that can be used to separate cyanobacteria
+cells from the rest, e.g. "YEL.B.HLin"}
 
-\item{interest}{a string indicating cell population of interest to be gated, can be "BS4", "BS5" or both.}
+\item{interest}{a string indicating poistion of population of interest to be gated,
+can be "bottom-right", "top-right" or "both-right".}
 
-\item{to_retain}{should potential candidates be retained or further gating be applied to filter out only certain cyano cells.}
+\item{to_retain}{should potential candidates be retained or further
+gating be applied to filter out only certain cyano cells.}
 }
 \value{
 list containing; \itemize{
 \item \strong{fullframe -} full flowframe with indicator for debris, BS4/BS5 or both.
-\item \strong{reducedframe -} flowframe with only cells of interest.
-\item \item \strong{Cell_count -} a vector containing number of BS4 and/or number of BS5 as the case may be.
+\item \strong{reducedframe -} flowframe with onlySynechococcus cyanobacteria.
+\item \item \strong{Cell_count -} a vector containing number of Synechococcus cyanobacteria
+                                  cells. Might be a single value or vector of two values
+                                  depending on interest.
 \item \strong{Debris_count -} number of debris particles.
 }
 }
@@ -31,10 +37,13 @@ list containing; \itemize{
 This is a top-level function that calls other functions to identify cell population of interest.
 }
 \details{
-The indicators assigned to the "BS4BS5.Indicator" column in the full flowframe depends on the \emph{interest} supplied.
-         For \emph{interest="BS4"} or \emph{interest="BS5"}; 0 = Debris, 1 = BS4/BS5, 2 = not-identified while for \emph{interest="Both"},
-         0 = Debris, 1 = BS4, 2 = BS5, 3 = not-identified. This function calls the \code{\link{debris_nc}} or \code{\link{debris_inc}} function to identify debris and afterwards
-         call the \code{\link{bs4_nc}} and/or \code{\link{bs5_nc}} depending on the interest supplied.
+The indicators assigned to the "BS4BS5.Indicator" column in the full flowframe depends
+         on the \emph{interest} supplied. For \emph{interest="bottom-right"} or
+         \emph{interest="top-right"}; 0 = Debris, 1 = BS4/BS5, 2 = not-identified while for
+         \emph{interest="Both"}, 0 = Debris, 1 = Syn-1, 2 = Syn-2, 3 = not-identified.
+         This function calls the \code{\link{debris_nc}} or \code{\link{debris_inc}} function to
+         identify debris and afterwards call the \code{\link{bs4_nc}} and/or \code{\link{bs5_nc}}
+         depending on the interest supplied.
 }
 \examples{
 \donttest{
@@ -45,11 +54,12 @@ flowfile <- flowCore::read.FCS(flowfile_path, alter.names = TRUE,
                                dataset = 1) #FCS file contains only one data object
 flowfile_nona <- cyanoFilter::nona(x = flowfile)
 flowfile_noneg <- cyanoFilter::noneg(x = flowfile_nona)
-flowfile_logtrans <- lnTrans(x = flowfile_noneg, c('SSC.W', 'TIME'))
+flowfile_logtrans <- cyanoFilter::lnTrans(x = flowfile_noneg, c('SSC.W', 'TIME'))
 cells_nonmargin <- cellmargin(flow.frame = flowfile_logtrans, Channel = 'SSC.W',
            type = 'estimate', y_toplot = "FSC.HLin")
-celldebris_nc(flowframe = cells_nonmargin, channel1 = "RED.B.HLin", channel2 = "YEL.B.HLin",
-              interest = "BS4", to_retain = "refined")
+celldebris_nc(flowframe = cells_nonmargin$reducedframe, channel1 = "RED.B.HLin",
+              channel2 = "YEL.B.HLin",
+              interest = "bottom-right", to_retain = "refined")
 }
 
 }

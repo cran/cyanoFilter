@@ -4,19 +4,19 @@
 \alias{cluster_plot}
 \title{plots the expression matrix of a flowframe analysed with celldebris_emclustering.}
 \usage{
-cluster_plot(flowfile, channel1 = "RED.B.HLin",
-  channel2 = "YEL.B.HLin", mus = NULL, tau = NULL)
+cluster_plot(flowfile, channels, mus = NULL, tau = NULL, classifier)
 }
 \arguments{
 \item{flowfile}{flowframe to be plotted}
 
-\item{channel1}{column in expression matrix not to be plotted}
-
-\item{channel2}{column in expression matrix not to be plotted}
+\item{channels}{channels used in gating}
 
 \item{mus}{matrix of means obtained from celldebris_emclustering}
 
 \item{tau}{vector of cluster weights obtained from celldebris_emclustering}
+
+\item{classifier}{cells will be assigned to a cluster if belongs to that cluster
+by at least this probability. Only for plotting purposes.}
 }
 \description{
 plots the expression matrix of a flowframe analysed with celldebris_emclustering.

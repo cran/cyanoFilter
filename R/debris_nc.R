@@ -1,19 +1,24 @@
 #' gates out or assign indicators to debris particle.
 #'
 #' @param flowframe flowframe with debris, BS4, BS5 and other cells.
-#' @param p1 first flowcytometer channel that can be used to separate debris from the rest, e.g. "RED.B.HLin".
-#' @param p2 second flowcytometer channel that can be used to separate debris from the rest, e.g. "YEL.B.HLin"
+#' @param p1 first flowcytometer channel that can be used to separate debris
+#'           from the rest, e.g. "RED.B.HLin".
+#' @param p2 second flowcytometer channel that can be used to separate debris
+#'           from the rest, e.g. "YEL.B.HLin"
 #'
 #' @return list containing; \itemize{
-#' \item \strong{bs4bs5 - flowframe containing non-debris particles}
+#' \item \strong{syn - flowframe containing non-debris particles}
 #' \item \strong{deb_pos - position of particles that are debris}
-#' \item \strong{bs4bs5_pos - position of particles that are not debris}
+#' \item \strong{syn_pos - position of particles that are not debris}
 #' }
 #'
-#' @description The function takes in a flowframe and identifies debris contained in the provided flowframe.
+#' @description The function takes in a flowframe and identifies debris contained in the
+#'              provided flowframe.
 #'
-#' @details The function uses the \code{\link[flowDensity]{getPeaks}} and \code{\link[flowDensity]{deGate}} functions in the flowDensity package to
-#'          identify peaks between peaks and identify cut-off points between these peaks. A plot of both channels supplied with horizontal line separating
+#' @details The function uses the \code{\link[flowDensity]{getPeaks}} and
+#'          \code{\link[flowDensity]{deGate}} functions in the flowDensity package to
+#'          identify peaks between peaks and identify cut-off points between these peaks.
+#'          A plot of both channels supplied with horizontal line separating
 #'          debris from other cell populations is also returned.
 #'
 #' @seealso \code{\link{debris_inc}}
@@ -28,7 +33,9 @@ debris_nc <- function(flowframe, p1, p2) {
     p1_peaks <- flowDensity::getPeaks(flowframe, p1)
 
     # plotting
-    flowDensity::plotDens(flowframe, c(p1, p2), main = paste(flowCore::identifier(flowframe), length(p1_peaks$Peaks), sep = "-"), frame.plot = F)
+    flowDensity::plotDens(flowframe, c(p1, p2), main = paste(flowCore::identifier(flowframe),
+                                                             length(p1_peaks$Peaks), sep = "-"),
+                          frame.plot = F)
 
     if (length(p1_peaks$Peaks) == 2) {
         # all is well
@@ -56,8 +63,9 @@ debris_nc <- function(flowframe, p1, p2) {
     other_pos <- which(flowCore::exprs(flowframe)[, p1] > deb_cut)
     deb_pos <- which(flowCore::exprs(flowframe)[, p1] <= deb_cut)
 
-    text(x = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p1] <= deb_cut), p1]), y = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p2] <=
+    text(x = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p1] <= deb_cut), p1]),
+         y = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p2] <=
         deb_cut), p2]), "Deb", col = 2)
 
-    return(list(bs4bs5 = bs4bs5, deb_pos = deb_pos, bs4bs5_pos = other_pos))
+    return(list(syn = bs4bs5, deb_pos = deb_pos, syn_all_pos = other_pos))
 }

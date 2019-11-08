@@ -5,7 +5,7 @@
 \title{identifies BS4, BS5 and Debris in a flowfile using an EM style algorithm.}
 \usage{
 celldebris_emclustering(flowfile, channels, mu = NULL, sigma = NULL,
-  ncluster = 5, min.itera = 20)
+  ncluster = 5, min.itera = 20, classifier = 0.8)
 }
 \arguments{
 \item{flowfile}{flowframe to be clustered.}
@@ -21,6 +21,9 @@ of variance-covariance matrix with length equal ncluster. Defaults to NULL and w
 \item{ncluster}{number of cluster desired.}
 
 \item{min.itera}{minimum number of EM iterations.}
+
+\item{classifier}{cells will be assigned to a cluster if belongs to that cluster
+by at least this probability. Only for plotting purposes.}
 }
 \value{
 list containing; \itemize{
@@ -53,9 +56,10 @@ flowfile_logtrans <- lnTrans(x = flowfile_noneg, c('SSC.W', 'TIME'))
 cells_nonmargin <- cellmargin(flow.frame = flowfile_logtrans, Channel = 'SSC.W',
            type = 'estimate', y_toplot = "FSC.HLin")
 
-emapproach <- cyano_emclustering(flowfile = cells_nonmargin, channels = c("RED.B.HLin",
-                   "YEL.B.HLin", "FSC.HLin", "RED.R.HLin"),
-                   ncluster = 5, min.itera = 20)
+emapproach <- celldebris_emclustering(flowfile = cells_nonmargin$reducedflowframe,
+                    channels = c("RED.B.HLin", "YEL.B.HLin",
+                    "FSC.HLin", "RED.R.HLin"),
+                    ncluster = 5, min.itera = 20)
 }
 
 
