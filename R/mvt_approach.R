@@ -1,4 +1,4 @@
-#' identifies BS4, BS5 and Debris in a flowfile using an EM style algorithm.
+#' identifies Synechococcus cyanobacteria cells and Debris in a flowfile using an EM style algorithm.
 #'
 #' @param flowfile flowframe to be clustered.
 #' @param channels channels to use for the clustering
@@ -30,7 +30,7 @@
 #'
 #' @examples
 #'\donttest{
-#' flowfile_path <- system.file("extdata", "text.fcs", package = "cyanoFilter",
+#' flowfile_path <- system.file("extdata", "B4_18_1.fcs", package = "cyanoFilter",
 #'               mustWork = TRUE)
 #' flowfile <- flowCore::read.FCS(flowfile_path, alter.names = TRUE,
 #'                                transformation = FALSE, emptyValue = FALSE,

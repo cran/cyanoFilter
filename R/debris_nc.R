@@ -1,6 +1,6 @@
 #' gates out or assign indicators to debris particle.
 #'
-#' @param flowframe flowframe with debris, BS4, BS5 and other cells.
+#' @param flowframe flowframe with debris and other cells.
 #' @param p1 first flowcytometer channel that can be used to separate debris
 #'           from the rest, e.g. "RED.B.HLin".
 #' @param p2 second flowcytometer channel that can be used to separate debris

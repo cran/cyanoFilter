@@ -4,7 +4,7 @@
 #' @return flowframe with expression matrix rid of NAs.
 #'
 #' @examples
-#' flowfile_path <- system.file("extdata", "text.fcs", package = "cyanoFilter",
+#' flowfile_path <- system.file("extdata", "B4_18_1.fcs", package = "cyanoFilter",
 #'               mustWork = TRUE)
 #' flowfile <- flowCore::read.FCS(flowfile_path, alter.names = TRUE,
 #'                                transformation = FALSE, emptyValue = FALSE,

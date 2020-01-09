@@ -1,8 +1,7 @@
 
 # cyanoFilter
 
-[![Travis-CI Build
-Status](https://travis-ci.org/fomotis/cyanoFilter.svg?branch=master)](https://travis-ci.org/fomotis/cyanoFilter)
+<!---[![Travis-CI Build Status](https://travis-ci.org/fomotis/cyanoFilter.svg?branch=master)](https://travis-ci.org/fomotis/cyanoFilter) -->
 
 cyaoFilter is a package designed to identify, assign indicators and/or
 filter out synechoccus type cyanobacteria from a water sample examined
@@ -29,216 +28,247 @@ install(c("Biobase", "flowCore", "flowDensity"))
 
 # Motivation and Background
 
-Flow cytometry is a well-known technique for identifying cell
+Flow cytometry (FCM) is a well-known technique for identifying cell
 populations in fluids. It is largely applied in biological and medical
 sciences for cell sorting, counting, biomarker detections and protein
-engineering. Identifying cell populations in flow cytometry data often
-rely on manual gating, a subjective and generally irreproducible method
-based on expert knowledge. To address this issue, two filtering
-frameworks were developed in **R**, identifying and filtering out two
-strains of Synechococcus type cyanobacteria (*BS4* and *BS5*) from flow
-cytometry data.
+engineering. Identifying cell populations in flow cytometry data, a
+process termed gating can either be done mnually or via automated
+algorithms. Recenntly, researchers also apply machine learning tools to
+identify the different cell populations present in FCM data. Manual
+gating can be quite subjective and often not reproducible, but it aids
+the use of expert knowledge in the gating process, while machine
+learning tools and automated algorithms often don’t allow the use of
+expert knowledge in the gating process. To address this issue for
+cyanobacteria FCM experiments, we develop the cyanoFilter framework in
+**R**. We also demonstrate its use in filtering out two cyanobacteria
+strains named BS4 and BS5.
 
 # Usage
 
-The package comes with 2 internal datasets that is used for
-demonstrating the usage of the functions contained in the package. The
-**meta data** file contains *BS4* and *BS5* samples examined with a
-GUAVAVA flow cytometer at 3 dilution levels (*2000*, *10000* and
-*20000*) each. The **FCS** file contains the flow cytometer channel
-measurements for one of these sample.
+The package comes with 2 internal datasets that we use for demonstrating
+the usage of the functions contained in the package. The **meta data**
+file contains *BS4* and *BS5* samples measured with a guava easyCyte HT
+series at 3 dilution levels (*2000*, *10000* and *20000*) each. The
+**FCS** file contains the flow cytometer channel measurements for one of
+these sample.
 
 ## Meta File Preprocessing
 
 ### The Good Measurements
 
-`goodfcs()` is deigned to check the cells/\(\mu\)L of the meta file
+The **goodfcs()** is deigned to check the \(cell/\mu\)L of the meta file
 (normally csv) obtained from the flow cytometer and decide if the
-measurements in the FCS file can be trusted.
+measurements in the FCS file can be trusted. This function is
+essentially useful for flow cytometers that are not equipped to perform
+automated dilution.
 
 ``` r
+library(flowCore)
+library(cyanoFilter)
 #internally contained datafile in cyanoFilter
-metadata <- system.file("extdata", "2019-03-25_Rstarted.csv", package = "cyanoFilter",
-               mustWork = TRUE)
-metafile <- read.csv(metadata, skip = 7, stringsAsFactors = FALSE, check.names = TRUE)
-metafile <- metafile[, 1:65] #first 65 columns contains useful information
+metadata <- system.file("extdata", "2019-03-25_Rstarted.csv", 
+  package = "cyanoFilter", 
+  mustWork = TRUE)
+metafile <- read.csv(metadata, skip = 7, stringsAsFactors = FALSE, 
+  check.names = TRUE)
+#columns containing dilution, $\mu l$ and id information
+metafile <- metafile[, c(1:3, 6:8)] 
+knitr::kable(metafile) 
+```
+
+| Sample.Number | Sample.ID  | Number.of.Events | Dilution.Factor | Original.Volume |   Cells.L |
+| ------------: | :--------- | ---------------: | --------------: | --------------: | --------: |
+|             1 | BS4\_20000 |             6918 |           20000 |              10 |  62.02270 |
+|             2 | BS4\_10000 |             6591 |           10000 |              10 | 116.76311 |
+|             3 | BS4\_2000  |             6508 |            2000 |              10 | 517.90008 |
+|             4 | BS5\_20000 |             5976 |           20000 |              10 |  48.31036 |
+|             5 | BS5\_10000 |             5844 |           10000 |              10 |  90.51666 |
+|             6 | BS5\_2000  |             5829 |            2000 |              10 | 400.72498 |
+
+Each row in the csv file corresponds to a measurement from two types of
+cyanobacteria cells carried out at one of three dilution levels. The
+columns contain information about the dilution level, the number of
+cells per micro-litre (\(cell/\mu l\)), number of particles measured and
+a unique identification code for each measurement. The *Sample.ID*
+column is structured in the format cyanobacteria\_dilution. We extract
+the cyanobacteria part of this column into a new column and also rename
+the \(cell/\mu l\) column with the following code:
+
+``` r
 #extract the part of the Sample.ID that corresponds to BS4 or BS5
 metafile$Sample.ID2 <- stringr::str_extract(metafile$Sample.ID, "BS*[4-5]")
 #clean up the Cells.muL column
 names(metafile)[which(stringr::str_detect(names(metafile), "Cells."))] <- "CellspML"
+```
+
+### The Good Measurements
+
+To determine the appropriate data file to read from a FCM datafile, the
+desired minimum, maximum and column containing the \(cell\mu l\) values
+are supplied to the **goodfcs()** function. The code below demonstrates
+the use of this function for a situation where the desired minimum and
+maximum for \(cell/\mu l\) is 50 and 1000 respectively.
+
+``` r
 metafile$Status <- cyanoFilter::goodfcs(metafile = metafile, col_cpml = "CellspML", 
                                         mxd_cellpML = 1000, mnd_cellpML = 50)
-#should work fine with tidyverse setup
-metafile <- metafile %>% mutate(Status = cyanoFilter::goodfcs(metafile = metafile, col_cpml = 
-                                                                "CellspML", mxd_cellpML = 1000,
-                                                              mnd_cellpML = 50))
-#the whole metadata file
+
 knitr::kable(metafile)
 ```
 
-| Sample.Number | Sample.ID  | Number.of.Events | Termination.Count | Count.Gate | Dilution.Factor | Original.Volume |  CellspML | Total.Volume | Acquisition.Time..s. | Date.of.Acquisition | Time.of.Acquisition | FSC.Gain | SSC |    GRN.B |    YEL.B | RED.B | NIR.B | RED.R | NIR.R | SSC.1 | GRN.B.1 | YEL.B.1 | RED.B.1 | NIR.B.1 | RED.R.1 | NIR.R.1 | YEL.B….GRN.B | RED.B….GRN.B | NIR.B….GRN.B | RED.R….GRN.B | NIR.R….GRN.B | GRN.B….YEL.B | RED.B….YEL.B | NIR.B….YEL.B | RED.R….YEL.B | NIR.R….YEL.B | GRN.B….RED.B | YEL.B….RED.B | NIR.B….RED.B | RED.R….RED.B | NIR.R….RED.B | GRN.B….NIR.B | YEL.B….NIR.B | RED.B….NIR.B | RED.R….NIR.B | NIR.R….NIR.B | GRN.B….RED.R | YEL.B….RED.R | RED.B….RED.R | NIR.B….RED.R | NIR.R….RED.R | GRN.B….NIR.R | YEL.B….NIR.R | RED.B….NIR.R | NIR.B….NIR.R | RED.R….NIR.R | Threshold.Parameter | Threshold.Value | Flow.Rate | High.Concentration.Warning.Trigger | X..of.Errors…Warnings | User.Login.Name | User.Full.Name | WorkList                                                           | Sample.ID2 | Status |
-| ------------: | :--------- | ---------------: | ----------------: | :--------- | --------------: | --------------: | --------: | -----------: | -------------------: | :------------------ | :------------------ | -------: | --: | -------: | -------: | ----: | ----: | ----: | ----: | :---- | :------ | :------ | :------ | :------ | :------ | :------ | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :------------------ | --------------: | --------: | ---------------------------------: | --------------------: | :-------------- | :------------- | :----------------------------------------------------------------- | :--------- | :----- |
-|             1 | BS4\_20000 |             6918 |              5000 | Cyanos     |           20000 |              10 |  62.02270 |    111.53980 |            189.05051 | 25-MAR-2019         | 12:42:13            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   |
-|             2 | BS4\_10000 |             6591 |              5000 | Cyanos     |           10000 |              10 | 116.76311 |     56.44762 |             95.67394 | 25-MAR-2019         | 12:44:25            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   |
-|             3 | BS4\_2000  |             6508 |              5000 | Cyanos     |            2000 |              10 | 517.90008 |     12.56613 |             21.29853 | 25-MAR-2019         | 12:45:19            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     2 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   |
-|             4 | BS5\_20000 |             5976 |              5000 | Cyanos     |           20000 |              10 |  48.31036 |    123.70018 |            209.66132 | 25-MAR-2019         | 12:49:22            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     2 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | bad    |
-|             5 | BS5\_10000 |             5844 |              5000 | Cyanos     |           10000 |              10 |  90.51666 |     64.56270 |            109.42831 | 25-MAR-2019         | 12:51:49            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | good   |
-|             6 | BS5\_2000  |             5829 |              5000 | Cyanos     |            2000 |              10 | 400.72498 |     14.54614 |             24.65447 | 25-MAR-2019         | 12:52:47            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | good   |
+| Sample.Number | Sample.ID  | Number.of.Events | Dilution.Factor | Original.Volume |  CellspML | Sample.ID2 | Status |
+| ------------: | :--------- | ---------------: | --------------: | --------------: | --------: | :--------- | :----- |
+|             1 | BS4\_20000 |             6918 |           20000 |              10 |  62.02270 | BS4        | good   |
+|             2 | BS4\_10000 |             6591 |           10000 |              10 | 116.76311 | BS4        | good   |
+|             3 | BS4\_2000  |             6508 |            2000 |              10 | 517.90008 | BS4        | good   |
+|             4 | BS5\_20000 |             5976 |           20000 |              10 |  48.31036 | BS5        | bad    |
+|             5 | BS5\_10000 |             5844 |           10000 |              10 |  90.51666 | BS5        | good   |
+|             6 | BS5\_2000  |             5829 |            2000 |              10 | 400.72498 | BS5        | good   |
 
-``` r
-#some interesting columns and the newly added column
-knitr::kable(metafile %>% 
-              dplyr::select(Sample.ID, Sample.ID2, Number.of.Events, Dilution.Factor, CellspML, Status) )
-```
-
-| Sample.ID  | Sample.ID2 | Number.of.Events | Dilution.Factor |  CellspML | Status |
-| :--------- | :--------- | ---------------: | --------------: | --------: | :----- |
-| BS4\_20000 | BS4        |             6918 |           20000 |  62.02270 | good   |
-| BS4\_10000 | BS4        |             6591 |           10000 | 116.76311 | good   |
-| BS4\_2000  | BS4        |             6508 |            2000 | 517.90008 | good   |
-| BS5\_20000 | BS5        |             5976 |           20000 |  48.31036 | bad    |
-| BS5\_10000 | BS5        |             5844 |           10000 |  90.51666 | good   |
-| BS5\_2000  | BS5        |             5829 |            2000 | 400.72498 | good   |
-
-The **Status** columns indicates if the file at the current dilution
-level is good.
+The function adds an extra column, *Status*, with entries *good* or
+*bad* to the metafile. Rows containing \(cell/\mu l\) values outside the
+desired minimum and maximum are labelled *bad*. Note that the *Status*
+column for the fourth row is labelled *bad*, because it has a
+\(cell/\mu l\) value outside the desired range.
 
 ### Files to Retain
 
-Generally, reading **FCS** files with the `read.FCS()` function from the
-`flowCore` package takes time, hence it can save you considerable amount
-of time to read only the good files. An **FCS** normally contains data
-from many experiment or same experiment measured at different dilution
-levels. Some of these would be determined bad by the `goodfcs()`
-function and should be avoided. The `retain()` function is especially
-designed for this.
-
-Since each sample, i.e. *BS4* and *BS5* were measured at 3 dilution
-levels it means that the 3 rows in *metafile* containing the
-measurements of *BS4* are to be examined together by the `retain()`
-function and the same should be done for the *BS5* dilution levels. This
-can easily be achieved by using some `tidyverse` function to break the
-*metafile* into two based on *Sample.ID2* and apply `retain()` on the
-broken dataset.
+Although any of the files labelled good can be read from the FCM file,
+the **retain()** function can help select either the file with the
+highest \(cell/\mu l\) or that with the smallest \(cell/\mu l\) value.
+To do this, one supplies the function with the status column,
+\(cell/\mu l\) column and the desired decision. The code below
+demonstrates this action for a case where we want to select the file
+with the maximum \(cell/\mu l\) from the good measurements for each
+unique sample ID.
 
 ``` r
-#break csv file into groups (2 in this case) based on sample ID2
-broken <- metafile %>% group_by(Sample.ID2) %>% nest() 
-#this is how broken looks like
-broken
-> # A tibble: 2 x 2
->   Sample.ID2 data             
->   <chr>      <list>           
-> 1 BS4        <tibble [3 x 66]>
-> 2 BS5        <tibble [3 x 66]>
-
-# Let's apply the function
+broken <- metafile %>% group_by(Sample.ID2) %>% nest()
 metafile$Retained <- unlist(map(broken$data, function(.x) {
-    cyanoFilter::retain(meta_files = .x, make_decision = "maxi",
-                      Status = "Status", 
-                      CellspML = "CellspML")
-  })
-)  
-#the whole metadata file
+  retain(meta_files = .x, make_decision = "maxi",
+  Status = "Status",
+  CellspML = "CellspML")
+ })
+)
 knitr::kable(metafile)
 ```
 
-| Sample.Number | Sample.ID  | Number.of.Events | Termination.Count | Count.Gate | Dilution.Factor | Original.Volume |  CellspML | Total.Volume | Acquisition.Time..s. | Date.of.Acquisition | Time.of.Acquisition | FSC.Gain | SSC |    GRN.B |    YEL.B | RED.B | NIR.B | RED.R | NIR.R | SSC.1 | GRN.B.1 | YEL.B.1 | RED.B.1 | NIR.B.1 | RED.R.1 | NIR.R.1 | YEL.B….GRN.B | RED.B….GRN.B | NIR.B….GRN.B | RED.R….GRN.B | NIR.R….GRN.B | GRN.B….YEL.B | RED.B….YEL.B | NIR.B….YEL.B | RED.R….YEL.B | NIR.R….YEL.B | GRN.B….RED.B | YEL.B….RED.B | NIR.B….RED.B | RED.R….RED.B | NIR.R….RED.B | GRN.B….NIR.B | YEL.B….NIR.B | RED.B….NIR.B | RED.R….NIR.B | NIR.R….NIR.B | GRN.B….RED.R | YEL.B….RED.R | RED.B….RED.R | NIR.B….RED.R | NIR.R….RED.R | GRN.B….NIR.R | YEL.B….NIR.R | RED.B….NIR.R | NIR.B….NIR.R | RED.R….NIR.R | Threshold.Parameter | Threshold.Value | Flow.Rate | High.Concentration.Warning.Trigger | X..of.Errors…Warnings | User.Login.Name | User.Full.Name | WorkList                                                           | Sample.ID2 | Status | Retained |
-| ------------: | :--------- | ---------------: | ----------------: | :--------- | --------------: | --------------: | --------: | -----------: | -------------------: | :------------------ | :------------------ | -------: | --: | -------: | -------: | ----: | ----: | ----: | ----: | :---- | :------ | :------ | :------ | :------ | :------ | :------ | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :----------- | :------------------ | --------------: | --------: | ---------------------------------: | --------------------: | :-------------- | :------------- | :----------------------------------------------------------------- | :--------- | :----- | :------- |
-|             1 | BS4\_20000 |             6918 |              5000 | Cyanos     |           20000 |              10 |  62.02270 |    111.53980 |            189.05051 | 25-MAR-2019         | 12:42:13            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   | No\!     |
-|             2 | BS4\_10000 |             6591 |              5000 | Cyanos     |           10000 |              10 | 116.76311 |     56.44762 |             95.67394 | 25-MAR-2019         | 12:44:25            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   | No\!     |
-|             3 | BS4\_2000  |             6508 |              5000 | Cyanos     |            2000 |              10 | 517.90008 |     12.56613 |             21.29853 | 25-MAR-2019         | 12:45:19            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     2 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS4        | good   | Retain   |
-|             4 | BS5\_20000 |             5976 |              5000 | Cyanos     |           20000 |              10 |  48.31036 |    123.70018 |            209.66132 | 25-MAR-2019         | 12:49:22            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     2 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | bad    | No\!     |
-|             5 | BS5\_10000 |             5844 |              5000 | Cyanos     |           10000 |              10 |  90.51666 |     64.56270 |            109.42831 | 25-MAR-2019         | 12:51:49            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | good   | No\!     |
-|             6 | BS5\_2000  |             5829 |              5000 | Cyanos     |            2000 |              10 | 400.72498 |     14.54614 |             24.65447 | 25-MAR-2019         | 12:52:47            | 10.37472 |   1 | 9.934862 | 3.084422 |     1 |     1 |     1 |     1 | Yes   | Yes     | Yes     | Yes     | Yes     | Yes     | Yes     | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | —            | FSC                 |              50 |      0.59 |                                500 |                     1 | DESKTOP-9MNKV60 | Unknown        | C:/Users/User/Documents/Backup data/2019-03-25\_at\_12-37-08pm.xml | BS5        | good   | Retain   |
+| Sample.Number | Sample.ID  | Number.of.Events | Dilution.Factor | Original.Volume |  CellspML | Sample.ID2 | Status | Retained |
+| ------------: | :--------- | ---------------: | --------------: | --------------: | --------: | :--------- | :----- | :------- |
+|             1 | BS4\_20000 |             6918 |           20000 |              10 |  62.02270 | BS4        | good   | No\!     |
+|             2 | BS4\_10000 |             6591 |           10000 |              10 | 116.76311 | BS4        | good   | No\!     |
+|             3 | BS4\_2000  |             6508 |            2000 |              10 | 517.90008 | BS4        | good   | Retain   |
+|             4 | BS5\_20000 |             5976 |           20000 |              10 |  48.31036 | BS5        | bad    | No\!     |
+|             5 | BS5\_10000 |             5844 |           10000 |              10 |  90.51666 | BS5        | good   | No\!     |
+|             6 | BS5\_2000  |             5829 |            2000 |              10 | 400.72498 | BS5        | good   | Retain   |
 
-``` r
-#some interesting column
-knitr::kable(metafile %>% 
-              dplyr::select(Sample.ID, Sample.ID2, Number.of.Events, Dilution.Factor, CellspML, Status, Retained) )
-```
-
-| Sample.ID  | Sample.ID2 | Number.of.Events | Dilution.Factor |  CellspML | Status | Retained |
-| :--------- | :--------- | ---------------: | --------------: | --------: | :----- | :------- |
-| BS4\_20000 | BS4        |             6918 |           20000 |  62.02270 | good   | No\!     |
-| BS4\_10000 | BS4        |             6591 |           10000 | 116.76311 | good   | No\!     |
-| BS4\_2000  | BS4        |             6508 |            2000 | 517.90008 | good   | Retain   |
-| BS5\_20000 | BS5        |             5976 |           20000 |  48.31036 | bad    | No\!     |
-| BS5\_10000 | BS5        |             5844 |           10000 |  90.51666 | good   | No\!     |
-| BS5\_2000  | BS5        |             5829 |            2000 | 400.72498 | good   | Retain   |
-
-Notice that the function suggests you retain only the measurements
-associated with dilution *2000* since *make\_decision = “maxi”* and
-diltion *2000* happens to have the highest cells/\(\mu\)L measurement
-among the dilution levels for both *BS4* and *BS5*. Furthermore, rather
-than reading in 6 files, we have narrowed down to reading only the 2
-needed files.
+This function adds another column, *Retained*, to the metafile. The
+third and sixth row in the metadata are with the highest \(cell/\mu l\)
+values, thus one can proceed to read the fourth and sixth file from the
+corresponding FCM datafile for *BS4* and *BS5* respectively. This
+implies that we are reading in only two FCM files rather than six needed
+files.
 
 ## Flow Cytometer File Processing
 
-### Removing NAs in Expression Matrix
-
-`nona()` functions removes `NA` values from the inputed
-flowframe.
-
-``` r
-flowfile_path <- system.file("extdata", "text.fcs", package = "cyanoFilter",
-                              mustWork = TRUE)
-flowfile <- flowCore::read.FCS(flowfile_path, alter.names = TRUE,
-                               transformation = FALSE, emptyValue = FALSE,
-                               dataset = 1) #FCS file contains only one data object
-flowfile_nona <- cyanoFilter::nona(x = flowfile)
-```
-
-### Removing Negative Values in Expression Matrix
-
-Typically negative values are removed from the expression matrix as they
-are deemed measurement error (there are some arguments against this) so
-the `noneg()` rids a flowframe of all negative values in its expression
-matrix.
+To input the **B4\_18\_1.fcs** file into **R**, we use the
+**read.FCS()** function from the **flowCore** package. The *dataset*
+option enables the specification of the precise file to be read. Since
+this datafile contains one file only, we set this option to 1. If this
+option is set to 2, it gives an error since **text.fcs** contains only
+one datafile.
 
 ``` r
-flowfile_noneg <- cyanoFilter::noneg(x = flowfile_nona)
+flowfile_path <- system.file("extdata", "B4_18_1.fcs", package = "cyanoFilter",
+  mustWork = TRUE)
+flowfile <- read.FCS(flowfile_path, alter.names = TRUE,
+  transformation = FALSE, emptyValue = FALSE,
+  dataset = 1)
+flowfile
+> flowFrame object ' B4_18_1'
+> with 8729 cells and 11 observables:
+>            name                                desc range    minRange
+> $P1    FSC.HLin          Forward Scatter (FSC-HLin) 1e+05    0.000000
+> $P2    SSC.HLin             Side Scatter (SSC-HLin) 1e+05  -34.479282
+> $P3  GRN.B.HLin   Green-B Fluorescence (GRN-B-HLin) 1e+05  -21.194536
+> $P4  YEL.B.HLin  Yellow-B Fluorescence (YEL-B-HLin) 1e+05  -10.327441
+> $P5  RED.B.HLin     Red-B Fluorescence (RED-B-HLin) 1e+05   -5.347203
+> $P6  NIR.B.HLin Near IR-B Fluorescence (NIR-B-HLin) 1e+05   -4.307983
+> $P7  RED.R.HLin     Red-R Fluorescence (RED-R-HLin) 1e+05  -25.490185
+> $P8  NIR.R.HLin Near IR-R Fluorescence (NIR-R-HLin) 1e+05  -16.020023
+> $P9    SSC.ALin        Side Scatter Area (SSC-ALin) 1e+05    0.000000
+> $P10      SSC.W          Side Scatter Width (SSC-W) 1e+05 -111.000000
+> $P11       TIME                                Time 1e+05    0.000000
+>      maxRange
+> $P1     99999
+> $P2     99999
+> $P3     99999
+> $P4     99999
+> $P5     99999
+> $P6     99999
+> $P7     99999
+> $P8     99999
+> $P9     99999
+> $P10    99999
+> $P11    99999
+> 368 keywords are stored in the 'description' slot
 ```
 
-### Log-Transforming Expression Matrix
+The **R** object *flowfile* contains measurements about cells across 10
+channels since the time channel does not contain any information about
+the properties of the measured cells.
 
-`lnTrans()` transforms all values (except those specified in the
-*notToTransform* option) in an expression matrix to the log scale. This
-function has a counterpart in the `flowCore()` package but we made
-things simpler and also give the opportunity for users to specify
-columns in the flowframe that are not to be
-transformed.
+### Transformation and visualisation
+
+To examine the need for transformation, a visual representation of the
+information in the expression matrix is of great use. The
+**pair\_plot()** function produces a panel plot of all measured
+channels. Each plot is also smoothed to show the cell density at every
+part of the plot.
 
 ``` r
-flowfile_logtrans <- cyanoFilter::lnTrans(x = flowfile_noneg, notToTransform = c("SSC.W", "TIME"))
+flowfile_nona <- nona(x = flowfile)
+pair_plot(flowfile_nona, notToPlot = "TIME")
 ```
 
-### Plotting
+![**Panel plot for all channels measured in flowfile\_nona. A bivariate
+kernel smoothed color density is used to indicate the cell
+density.**](man/figures/README-remove_na-1.png)
 
-pair\_plot() gives a scatter plot of all columns in the flowframe,
-except that specified in the *notToPlot*
-option.
+We obtain Figure above by using the **pair\_plot()** function after
+removing all NA values from the expression matrix with the **nona()**
+function.
 
 ``` r
-cyanoFilter::pair_plot(flowfile_noneg, notToPlot = "TIME") ##untransfrmed
+#natural logarithm transformation
+flowfile_noneg <- noneg(x = flowfile_nona)
+flowfile_logtrans <- lnTrans(x = flowfile_noneg, 
+  notToTransform = c("SSC.W", "TIME"))
+pair_plot(flowfile_logtrans, notToPlot = "TIME")
 ```
 
-![](man/figures/README-plotting-1.png)<!-- -->
+![Panel plot for log-transformed channels for flowfile\_logtrans. A
+bivariate kernel smoothed color density is used to indicate the cell
+density.](man/figures/README-logtrans-1.png)
 
-``` r
-cyanoFilter::pair_plot(flowfile_logtrans, notToPlot = "TIME") ##logtransformed
-```
+The second figure is the result of performing a logarithmic
+transformation in addition to the previous actions taken. The
+logarithmic transformation appears satisfactory in this case, as it
+allow a better examination of the information contained in each panel of
+the figure. Moreover, the clusters are clearly visible in this figure
+compared to the former figure. Other possible transformation (linear,
+bi-exponential and arcsinh) can be pursued if the logarithm
+transformation is not satisfactory. Functions for these transformations
+are provided in the **flowCore** package.
 
-![](man/figures/README-plotting-2.png)<!-- -->
-
-## Clustering and Gating
+## Gating
 
 Flow cytometry outcomes can be divided into 3 and they are not entirely
 mutually exclusive but this is normally not a problem as scientists are
 normally interested in a pre-defined outcome.
 
-![](man/figures/README-flowcytometryOutcome.PNG)<!-- -->
+<!---![Flow Cytometry
+Outcomes](README_files/figure-gfm/flowcytometryOutcome.PNG)--->
 
   - Margin Events are particles too big to be measured
   - Doublets are cells with disproportionate Area, Height relationship
@@ -246,238 +276,243 @@ normally interested in a pre-defined outcome.
     cells/particles (debris) and living (good cells).
 
 The set of functions below identifies margin events and singlets.
-Doublets are normally pre-filtered during the event acquiring phase in a
-flow cytometer, especially in new models.
+Doublets are normally pre-filtered during the event acquiring phase of
+measuring.
 
-### Margin Events
+### Gating margin events
 
-Margin Events are particles that are too large for teh flow cytometer to
-measure. It is desired to eliminate this particles or assign indicators
-to them in the flow frame to allow its identification. The
-`cellmargin()` function achieves this. It returns a list containing;
-
-  - *fullflowframe* with indicator for margin and non-margin events in
-    th eexpression matrix,
-  - *reducedflowframe* containing only non-margin events
-  - *N\_margin* number of margin events contained in the input flowframe
-  - *N\_nonmargin* number of non-margin events
-  - *N\_particle* number of particles in the input
-flowframe
-
-<!-- end list -->
+To remove margin events, the **cellmargin()** function takes the column
+in the expression matrix corresponding to measurements about the width
+of each cell. The code below demonstrates the removal of margin events
+using the SSC.W column with the option to estimate the cut point between
+the margin events and the good cells.
 
 ``` r
-flowfile_marginout <- cyanoFilter::cellmargin(flow.frame = flowfile_logtrans, Channel = 'SSC.W',
-                                              type = 'estimate', y_toplot = "FSC.HLin")
+flowfile_marginout <- cellmargin(flow.frame = flowfile_logtrans,
+  Channel = 'SSC.W', type = 'estimate', y_toplot = "FSC.HLin")
 ```
 
-![](man/figures/README-marginEvents-1.png)<!-- -->
+![Smoothed Scatterplot of measured width (SSC.W) and height (FSC.HLin).
+The red line is the estimated cut point by flowDensity, and every
+particle below the red line has their width properly measured. This
+figure is produced automatically when users call the cellmargin()
+function.](man/figures/README-marginEvents-1.png)
+
+The function returns a figure (Figure @ref(fig:marginEvents)) in this
+case) and a list containing:
+
+  - *fullflowframe*, flowframe with indicator for margin and non-margin
+    events in the expression matrix,
+  - *reducedflowframe*, flowframe containing only non-margin events
+  - *N\_margin*, number of margin events contained in the input
+    flowframe
+  - *N\_nonmargin*, number of non-margin events
+  - *N\_particle*, number of particles in the input flowframe
+
+The code below accesses the number of margin and non-margin particles.
+
+``` r
+flowfile_marginout$N_margin
+> [1] 3092
+flowfile_marginout$N_nonmargin
+> [1] 3831
+```
+
+### Gating debris and cyanobacteria
 
 We conceptualized the division of cells into clusters in two ways in
 cyanoFilter and this is reflected in two main functions that perform the
-clustering exercise; `celldebris_nc()` and `celldebris_emclustering()`.
-The `celldebris_nc()` function employs minimum intersection points
-between peaks in observed in a two dimensional kernel density estimate
-while `celldebris_emclustering()` employs an EM algorithm which uses a
-mixture of multivariate normals to assign probabilities to each cell
-belonging to a cluster. Behind the scenes, `celldebris_nc()` calls the
-`deGate()` in **flowDensity** package to estimate the intersection point
-between peaks and `celldebris_emclustering()` calls an internal
-`mvnorm()` function for the multivariate normals. Both functions produce
-plots by default to enable users access the
-results.
+clustering exercise; **celldebris\_nc()** and
+**celldebris\_emclustering()**. The **celldebris\_nc()** function
+employs minimum intersection points between peaks observed in a two
+dimensional kernel density, while **celldebris\_emclustering()** employs
+a finite mixture of multivariate normals to assign probability of
+belonging to a cluster to each measured particle. Both functions produce
+plots by default to enable users examine the results of the clustering.
 
-### cyanobacteria Population Identification (Kernel Density Approach using flowDensity)
-
-``` r
-
-cyanoFilter::celldebris_nc(flowfile_marginout$reducedflowframe, channel1 = "RED.B.HLin",
-                    channel2 = "YEL.B.HLin", interest = "BS4", to_retain = "refined" )
-```
-
-![](man/figures/README-kdapproach-1.png)<!-- -->
-
-    > $fullframe
-    > flowFrame object ' B4_18_1'
-    > with 3831 cells and 13 observables:
-    >                  name                                desc range
-    > $P1          FSC.HLin          Forward Scatter (FSC-HLin) 1e+05
-    > $P2          SSC.HLin             Side Scatter (SSC-HLin) 1e+05
-    > $P3        GRN.B.HLin   Green-B Fluorescence (GRN-B-HLin) 1e+05
-    > $P4        YEL.B.HLin  Yellow-B Fluorescence (YEL-B-HLin) 1e+05
-    > $P5        RED.B.HLin     Red-B Fluorescence (RED-B-HLin) 1e+05
-    > $P6        NIR.B.HLin Near IR-B Fluorescence (NIR-B-HLin) 1e+05
-    > $P7        RED.R.HLin     Red-R Fluorescence (RED-R-HLin) 1e+05
-    > $P8        NIR.R.HLin Near IR-R Fluorescence (NIR-R-HLin) 1e+05
-    > $P9          SSC.ALin        Side Scatter Area (SSC-ALin) 1e+05
-    > $P10            SSC.W          Side Scatter Width (SSC-W) 1e+05
-    > $P11             TIME                                Time 1e+05
-    > 12   Margin.Indicator                    Margin Indicator     1
-    > $P13 BS4BS5.Indicator                    BS4BS5.Indicator     1
-    >               minRange maxRange
-    > $P1                  0    99999
-    > $P2  -34.4792823791504    99999
-    > $P3  -21.1945362091064    99999
-    > $P4  -10.3274412155151    99999
-    > $P5  -5.34720277786255    99999
-    > $P6  -4.30798292160034    99999
-    > $P7  -25.4901847839355    99999
-    > $P8  -16.0200233459473    99999
-    > $P9                  0    99999
-    > $P10              -111    99999
-    > $P11                 0    99999
-    > 12                   0        1
-    > $P13                 0        1
-    > 368 keywords are stored in the 'description' slot
-    > 
-    > $reducedframe
-    > flowFrame object ' B4_18_1'
-    > with 3066 cells and 13 observables:
-    >                  name                                desc range
-    > $P1          FSC.HLin          Forward Scatter (FSC-HLin) 1e+05
-    > $P2          SSC.HLin             Side Scatter (SSC-HLin) 1e+05
-    > $P3        GRN.B.HLin   Green-B Fluorescence (GRN-B-HLin) 1e+05
-    > $P4        YEL.B.HLin  Yellow-B Fluorescence (YEL-B-HLin) 1e+05
-    > $P5        RED.B.HLin     Red-B Fluorescence (RED-B-HLin) 1e+05
-    > $P6        NIR.B.HLin Near IR-B Fluorescence (NIR-B-HLin) 1e+05
-    > $P7        RED.R.HLin     Red-R Fluorescence (RED-R-HLin) 1e+05
-    > $P8        NIR.R.HLin Near IR-R Fluorescence (NIR-R-HLin) 1e+05
-    > $P9          SSC.ALin        Side Scatter Area (SSC-ALin) 1e+05
-    > $P10            SSC.W          Side Scatter Width (SSC-W) 1e+05
-    > $P11             TIME                                Time 1e+05
-    > 12   Margin.Indicator                    Margin Indicator     1
-    > $P13 BS4BS5.Indicator                    BS4BS5.Indicator     1
-    >               minRange maxRange
-    > $P1                  0    99999
-    > $P2  -34.4792823791504    99999
-    > $P3  -21.1945362091064    99999
-    > $P4  -10.3274412155151    99999
-    > $P5  -5.34720277786255    99999
-    > $P6  -4.30798292160034    99999
-    > $P7  -25.4901847839355    99999
-    > $P8  -16.0200233459473    99999
-    > $P9                  0    99999
-    > $P10              -111    99999
-    > $P11                 0    99999
-    > 12                   0        1
-    > $P13                 0        1
-    > 368 keywords are stored in the 'description' slot
-    > 
-    > $Cell_count
-    > [1] 3066
-    > 
-    > $Debris_Count
-    > [1] 348
-
-Here, we demonstrate the use of the `celldebris_nc()` function on the
-result from filtering out of margin events. The dashed red lines in the
-plot shows the intersection points estimated and the circle comes from
-the fact that *to\_retain* option was set to refined *refined*. This
-option forces the algorithm to retain only cells that are not more than
-1 standard deviations away from the center. If *to\_retain* is set to
-refined *potential*, then all points in the desired section of the 4
-sections resulting from the partitions are retained. The functions
-returns a list containing; a fullflowframe with added column for
-indicators for each cell type, a reduced flowframe with only *interest*
-cells retained, cell count and debris counts.
-
-### cyanobacteria Population Identification (EM Approach)
+After removing margin events, it is of interest to identify BS4
+cyanobacteria cells contained in the **text.fcs** datafile that we have
+pre-processed until now. The following code separates BS4 cyanobacteria
+cells using the two channels measuring the presence of chlorophyll *a*,
+RED.B.HLin, and phycoerythrin, YEL.B.HLin. We use the knowledge of
+knowing that the BS4 cells will be on the right part of the RED.B.HLin
+channel because of the presence of chlorophyll *a*, and also on the
+lower part of the YEL.B.HLin channel due to low presence of
+phycoerythrin.
 
 ``` r
 
-cyanoFilter::celldebris_emclustering(flowfile_marginout$reducedflowframe, channels =  c("RED.B.HLin",
-                    "YEL.B.HLin", "FSC.HLin", "RED.R.HLin"), ncluster = 4, min.itera = 20)
+bs4_gate1 <- celldebris_nc(flowfile_marginout$reducedflowframe, 
+  channel1 = "RED.B.HLin", channel2 = "YEL.B.HLin", 
+  interest = "bottom-right", to_retain = "refined" )
 ```
 
-![](man/figures/README-emapproach-1.png)<!-- -->
+![Smoothed Scatterplot of measured chlorophyll *a* channel (RED.B.HLin)
+and phycoerythrin channel (YEL.B.HLin). The red lines are the estimated
+minimum intersection points between the detected peaks. Particles to the
+left of the vertical red line are debris with no chlorophyll *a*, and
+those below the horizontal red line have low values of phycoerythrin.
+The plot is produced automatically when users call the celldebris\_nc()
+function.](man/figures/README-kdapproach-1.png)
 
-    > $percentages
-    > [1] 0.1603434 0.0913181 0.1352290 0.6131095
-    > 
-    > $mus
-    >                 [,1]      [,2]     [,3]     [,4]
-    > RED.B.HLin 3.8465630 0.7131422 4.464301 3.930001
-    > YEL.B.HLin 0.6397642 1.8554664 2.102632 1.898378
-    > FSC.HLin   4.5897667 5.4170762 6.421048 4.701586
-    > RED.R.HLin 7.6555843 2.4252307 8.227040 7.721501
-    > 
-    > $sigmas
-    > $sigmas[[1]]
-    >            RED.B.HLin YEL.B.HLin   FSC.HLin RED.R.HLin
-    > RED.B.HLin 0.07580081 0.02980540 0.08426180 0.07097636
-    > YEL.B.HLin 0.02980540 1.23630828 0.04172387 0.05866036
-    > FSC.HLin   0.08426180 0.04172387 0.16182267 0.08745400
-    > RED.R.HLin 0.07097636 0.05866036 0.08745400 0.08886564
-    > 
-    > $sigmas[[2]]
-    >            RED.B.HLin YEL.B.HLin   FSC.HLin RED.R.HLin
-    > RED.B.HLin 0.57603628 0.07228834 0.15286443 0.27384572
-    > YEL.B.HLin 0.07228834 0.45502738 0.18243234 0.06658472
-    > FSC.HLin   0.15286443 0.18243234 1.05536281 0.09535163
-    > RED.R.HLin 0.27384572 0.06658472 0.09535163 2.19134493
-    > 
-    > $sigmas[[3]]
-    >            RED.B.HLin YEL.B.HLin  FSC.HLin RED.R.HLin
-    > RED.B.HLin  0.7139009  0.2776214 0.8619770  0.7329412
-    > YEL.B.HLin  0.2776214  0.3681875 0.5154923  0.2867341
-    > FSC.HLin    0.8619770  0.5154923 1.7671543  0.9027176
-    > RED.R.HLin  0.7329412  0.2867341 0.9027176  0.7740840
-    > 
-    > $sigmas[[4]]
-    >            RED.B.HLin YEL.B.HLin   FSC.HLin RED.R.HLin
-    > RED.B.HLin 0.08659053 0.01262454 0.09003367 0.07992904
-    > YEL.B.HLin 0.01262454 0.20102538 0.02049452 0.00709516
-    > FSC.HLin   0.09003367 0.02049452 0.15117268 0.09328323
-    > RED.R.HLin 0.07992904 0.00709516 0.09328323 0.09980127
-    > 
-    > 
-    > $result
-    > flowFrame object ' B4_18_1'
-    > with 3831 cells and 16 observables:
-    >                  name                                desc range
-    > $P1          FSC.HLin          Forward Scatter (FSC-HLin) 1e+05
-    > $P2          SSC.HLin             Side Scatter (SSC-HLin) 1e+05
-    > $P3        GRN.B.HLin   Green-B Fluorescence (GRN-B-HLin) 1e+05
-    > $P4        YEL.B.HLin  Yellow-B Fluorescence (YEL-B-HLin) 1e+05
-    > $P5        RED.B.HLin     Red-B Fluorescence (RED-B-HLin) 1e+05
-    > $P6        NIR.B.HLin Near IR-B Fluorescence (NIR-B-HLin) 1e+05
-    > $P7        RED.R.HLin     Red-R Fluorescence (RED-R-HLin) 1e+05
-    > $P8        NIR.R.HLin Near IR-R Fluorescence (NIR-R-HLin) 1e+05
-    > $P9          SSC.ALin        Side Scatter Area (SSC-ALin) 1e+05
-    > $P10            SSC.W          Side Scatter Width (SSC-W) 1e+05
-    > $P11             TIME                                Time 1e+05
-    > 12   Margin.Indicator                    Margin Indicator     1
-    > 1      Cluster_Prob_1                      Cluster_Prob_1     1
-    > 2      Cluster_Prob_2                      Cluster_Prob_2     1
-    > 3      Cluster_Prob_3                      Cluster_Prob_3     1
-    > 4      Cluster_Prob_4                      Cluster_Prob_4     1
-    >                  minRange          maxRange
-    > $P1                     0             99999
-    > $P2     -34.4792823791504             99999
-    > $P3     -21.1945362091064             99999
-    > $P4     -10.3274412155151             99999
-    > $P5     -5.34720277786255             99999
-    > $P6     -4.30798292160034             99999
-    > $P7     -25.4901847839355             99999
-    > $P8     -16.0200233459473             99999
-    > $P9                     0             99999
-    > $P10                 -111             99999
-    > $P11                    0             99999
-    > 12                      0                 1
-    > 1                       0                 1
-    > 2    1.25653237833895e-27                 1
-    > 3                       0                 1
-    > 4                       0 0.998020607860337
-    > 368 keywords are stored in the 'description' slot
+The resulting object is a figure (Figure @ref(fig:kdapproach)) and a
+list containing the following:
 
-Here, we demonstrate the `celldebris_emclustering()` function on the
-result from filtering out of margin events. The red texts in the plot
-shows the center of each cluster and the boundaries of the cluster with
-the largest weight is plotted. It is quite difficult to vizualise
-5-dimensional clustering in two dimensions hence this option. The
-function returns a list containing; matrix of means, list of
-variance-covariance matrices and a flowframe with added columns for the
-cluster probabilities in the expression matrix.
+  - *reducedframe*, a flowFrame with all debris removed
+  - *fullframe*, flowFrame with all measured particles and indicator for
+    debris and cyanobacteria cells
+  - *Cell\_count*, the number of BS4 cells counted
+  - *Debris\_Count*, the number of debris particles.
+
+An alternative function for identifying BS4 cells is the
+**celldebris\_emclustering()** function. This function tries to identify
+the number of clusters supplied via the *ncluster* option, but this
+number is reduced if there are clusters with no particles during the EM
+iterations. The function can also accept more than two channels as
+input. The code below demonstrates its use with four channels measuring
+chlorophyll *a*, phycoerythrin, height and phycocyanin respectively.
+
+``` r
+
+bs4_gate2 <- celldebris_emclustering(flowfile_marginout$reducedflowframe, 
+  channels =  c("RED.B.HLin", "YEL.B.HLin", "FSC.HLin", "RED.R.HLin"), 
+  ncluster = 3, min.itera = 20, classifier = 0.8)
+```
+
+![Smoothed scatterplot of all channels used for gating. The plot is
+generated by assigning points to each cluster if their probability of
+belonging to that cluster is atleast 80%, which is set by the classifier
+option. Each cluster is assigned a colour, and bivariate kernel smoothed
+color density is used to indicate the cell density. The boundaries of
+the cluster with the highest number of particles is
+drawn.](man/figures/README-emapproach-1.png)
+
+The resulting object is a figure (Figure @ref(fig:emapproach)) and a
+list containing the following:
+
+1)  *percentages* the final weight for each cluster
+2)  *mus*, matrix of means for each channel per cluster
+3)  *sigmas*, list containing variance-covariace matrices for each
+    cluster,
+4)  *result*, flowfile with an expression matrix containing all the
+    measured particles and the associated probability of each particle
+    belonging to a cluster.
+
+Users can examine the means or cluster weights to determine which
+cluster is of interest, and then filter out particles belonging to that
+cluster with a certain minimum probability. For example, we demonstrate
+an example below by filtering out particles belonging to the cluster
+with the highest weight by at least 80%.
+
+``` r
+max_cluster_weight <- which(bs4_gate2$percentages == 
+  max(bs4_gate2$percentages))
+cluster_name <- paste("Cluster", "Prob", 
+  max_cluster_weight, sep = "_")
+reduced_frame <- which(bs4_gate2$result[, cluster_name] >= 0.80)
+```
+
+The object *reduced\_frame* is a flowframe containing all particles
+belonging to the largest cluster with probability of at least 80%.
+Following the same steps or knowledge of these cells, users can filter
+out particles belonging to certain clusters with characteristics of
+interest to them.
+
+### Gating Debris and cyanobacteria in biculture
+
+The second file used for demonstration contains both BS4 and BS5
+cyanobacteria cells.
+
+``` r
+flowfile2_path <- system.file("extdata", "B4_B5_18_1.fcs", package = "cyanoFilter",
+  mustWork = TRUE)
+flowfile2 <- read.FCS(flowfile2_path, alter.names = TRUE,
+  transformation = FALSE, emptyValue = FALSE,
+  dataset = 1)
+flowfile2
+> flowFrame object ' BI_18_1'
+> with 12665 cells and 11 observables:
+>            name                                desc range    minRange
+> $P1    FSC.HLin          Forward Scatter (FSC-HLin) 1e+05    0.000000
+> $P2    SSC.HLin             Side Scatter (SSC-HLin) 1e+05  -15.474201
+> $P3  GRN.B.HLin   Green-B Fluorescence (GRN-B-HLin) 1e+05  -25.141722
+> $P4  YEL.B.HLin  Yellow-B Fluorescence (YEL-B-HLin) 1e+05  -13.833652
+> $P5  RED.B.HLin     Red-B Fluorescence (RED-B-HLin) 1e+05   -7.098767
+> $P6  NIR.B.HLin Near IR-B Fluorescence (NIR-B-HLin) 1e+05   -7.817278
+> $P7  RED.R.HLin     Red-R Fluorescence (RED-R-HLin) 1e+05  -32.829483
+> $P8  NIR.R.HLin Near IR-R Fluorescence (NIR-R-HLin) 1e+05  -15.511206
+> $P9    SSC.ALin        Side Scatter Area (SSC-ALin) 1e+05    0.000000
+> $P10      SSC.W          Side Scatter Width (SSC-W) 1e+05 -111.000000
+> $P11       TIME                                Time 1e+05    0.000000
+>      maxRange
+> $P1     99999
+> $P2     99999
+> $P3     99999
+> $P4     99999
+> $P5     99999
+> $P6     99999
+> $P7     99999
+> $P8     99999
+> $P9     99999
+> $P10    99999
+> $P11    99999
+> 368 keywords are stored in the 'description' slot
+```
+
+All the steps previously demonstrated remains unchanged, s we carry it
+all out in one huge code chunk.
+
+``` r
+flowfile_nona2 <- nona(x = flowfile2)
+pair_plot(flowfile_nona2, notToPlot = "TIME")
+```
+
+![](man/figures/README-remove_na2-1.png)<!-- -->
+
+``` r
+
+#natural logarithm transformation
+flowfile_noneg2 <- noneg(x = flowfile_nona2)
+flowfile_logtrans2 <- lnTrans(x = flowfile_noneg2, 
+  notToTransform = c("SSC.W", "TIME"))
+pair_plot(flowfile_logtrans2, notToPlot = "TIME")
+```
+
+![](man/figures/README-remove_na2-2.png)<!-- -->
+
+``` r
+
+#gating margin events
+flowfile_marginout2 <- cellmargin(flow.frame = flowfile_logtrans2,
+  Channel = 'SSC.W', type = 'estimate', y_toplot = "FSC.HLin")
+```
+
+![](man/figures/README-remove_na2-3.png)<!-- -->
+
+Again we use the two channels measuring cholorophyll *a* and
+phycoerythrin, but we set the **interest** option to *both-right*. This
+means that we are expecting the cyanobacteria cells to be on the right
+of channel 1.
+
+``` r
+bs45_gate1 <- celldebris_nc(flowfile_marginout2$reducedflowframe, 
+  channel1 = "RED.B.HLin", channel2 = "YEL.B.HLin", 
+  interest = "both-right", to_retain = "refined" )
+```
+
+![](man/figures/README-gating3-1.png)<!-- -->
+
+For the *EM* clustering approach, nothing changes as well. However,
+users must analyse the result of the clustering to determine which
+cluster is of interest.
+
+``` r
+bs4_gate2 <- celldebris_emclustering(flowfile_marginout$reducedflowframe, 
+  channels =  c("RED.B.HLin", "YEL.B.HLin", "FSC.HLin", "RED.R.HLin"), 
+  ncluster = 4, min.itera = 20, classifier = 0.8)
+```
+
+![](man/figures/README-gating4-1.png)<!-- -->
 
 # License
 

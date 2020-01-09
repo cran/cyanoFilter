@@ -7,7 +7,7 @@
 debris_inc(flowframe, p1, p2)
 }
 \arguments{
-\item{flowframe}{flowframe with debris, BS4, BS5 and other cells.}
+\item{flowframe}{flowframe with debris and other cells.}
 
 \item{p1}{first flowcytometer channel that can be used to separate debris from the rest, e.g. "RED.B.HLin".}
 

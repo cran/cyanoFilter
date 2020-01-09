@@ -1,6 +1,6 @@
 #' gates out or assign indicators to debris particle.
 #'
-#' @param flowframe flowframe with debris, BS4, BS5 and other cells.
+#' @param flowframe flowframe with debris and other cells.
 #' @param p1 first flowcytometer channel that can be used to separate debris from the rest, e.g. "RED.B.HLin".
 #' @param p2 second flowcytometer channel that can be used to separate debris from the rest, e.g. "YEL.B.HLin"
 #'
@@ -116,5 +116,5 @@ debris_inc <- function(flowframe, p1, p2) {
          y = mean(flowframe@exprs[which(flowCore::exprs(flowframe)[, p2] <=
         deb_cut), p2]), "Deb", col = 2)
 
-    return(list(syn = bs4bs5, deb_pos = deb_pos, syn_pos = other_pos))
+    return(list(syn = bs4bs5, deb_pos = deb_pos, syn_all_pos = other_pos))
 }
